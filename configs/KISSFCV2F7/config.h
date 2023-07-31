@@ -38,7 +38,7 @@
 #define MOTOR3_PIN           PB8
 #define MOTOR4_PIN           PB6
 #define MOTOR5_PIN           PB7
-#define MOTOR5_PIN           PC7
+#define MOTOR6_PIN           PC7
 
 #define LED_STRIP_PIN        PB3
 
