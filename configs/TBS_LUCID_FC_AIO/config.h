@@ -23,7 +23,7 @@
 
 #define FC_TARGET_MCU                       AT32F435M
 
-#define BOARD_NAME                          TBSAT32AIO
+#define BOARD_NAME                          TBS_LUCID_FC_AIO
 #define MANUFACTURER_ID                     TEBS
 
 #define USE_ACC
