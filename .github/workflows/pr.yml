@@ -47,7 +47,7 @@ jobs:
 
           BOARD_LIST=$(echo "$RAW_DIR_JSON" | jq -r '
             .[] |
-            select(startswith("betaflight/config/configs/")) |
+            select(startswith("configs/")) |
             rtrimstr("/") |
             split("/") |
             last |
