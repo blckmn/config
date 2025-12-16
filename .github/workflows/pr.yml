@@ -31,7 +31,7 @@ jobs:
         with:
           json: true
           files: |
-            config/**
+            configs/**
 
       - name: Display JSON Output (for debugging)
         run: |
