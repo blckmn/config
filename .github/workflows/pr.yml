@@ -29,6 +29,7 @@ jobs:
         id: changed_files
         uses: tj-actions/changed-files@v44
         with:
+          dir_names: true
           json: true
           files: |
             configs/**
