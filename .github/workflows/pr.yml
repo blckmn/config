@@ -31,8 +31,7 @@ jobs:
         with:
           dir_names: true
           json: true
-          files: |
-            configs/**
+          path: configs
 
       - name: Display JSON Output (for debugging)
         run: |
