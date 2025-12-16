@@ -43,15 +43,18 @@ jobs:
       - name: Process Paths and Extract Board Names
         id: process_dirs
         run: |
-          RAW_DIR_JSON="${{ steps.changed_files.outputs.all_changed_files }}"
+          RAW_DIR_JSON='${{ steps.changed_files.outputs.all_changed_files }}'
 
-          BOARD_LIST=$(echo "$RAW_DIR_JSON" | jq -r '
-            .[] |
-            select(startswith("configs/")) |
-            rtrimstr("/") |
-            split("/") |
-            last |
-            select(. != "")' | jq -s -c '.')
+          BOARD_LIST=$(echo "$RAW_DIR_JSON" | jq -c '
+              [
+                # Iterate, process, and collect into a new array
+                .[] |
+                select(startswith("configs/")) |
+                rtrimstr("/") |
+                split("/") |
+                last |
+                select(. != "")
+              ] | unique | .')
 
           # Fallback check: if the list is empty, default to an empty JSON array
           if [[ -z "$BOARD_LIST" || "$BOARD_LIST" == "[]" ]]; then
