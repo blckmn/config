@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get Changed Files and Output JSON
         id: changed_files
@@ -31,11 +33,17 @@ jobs:
         with:
           dir_names: true
           json: true
-          path: configs
 
-      - name: Display JSON Output (for debugging)
+      - name: Display Debug Output
         run: |
           echo "Output JSON: ${{ steps.changed_files.outputs.all_changed_files_json }}"
+          echo "--- ALL CHANGED FILES ---"
+          echo "${{ steps.changed_files.outputs.all_changed_files }}"
+          echo "--- DIRECTORIES JSON ---"
+          echo "${{ steps.changed_files.outputs.directories_json }}"
+          echo "--- FILES JSON ---"
+          echo "${{ steps.changed_files.outputs.all_changed_files_json }}"
+          echo "------------------------"
 
       - name: Process Paths and Extract Board Names
         id: process_dirs
