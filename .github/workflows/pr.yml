@@ -1,8 +1,9 @@
-name: Check config files are valid
+name: Config File Check
+description: Check config files are valid by performing a betaflight build (using master)
 
 permissions:
-  contents: read 
-  pull-requests: read 
+  contents: read
+  pull-requests: read
 
 on:
   pull_request:
@@ -10,24 +11,25 @@ on:
       - master
 
 jobs:
-  # ----------------------------------------------------
-  # JOB 1: Prepares the Matrix using a Marketplace Action
-  # ----------------------------------------------------
+  # -------------------------------------------------------
+  # JOB 1.1: Prepares the Matrix using a Marketplace Action
+  # -------------------------------------------------------
   prepare_matrix:
     runs-on: ubuntu-latest
-    
+
     outputs:
       changed_files_json: ${{ steps.changed_files.outputs.all_changed_files_json }}
+      board_list_json: ${{ steps.process_dirs.outputs.board_list_json }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-          
+
       - name: Get Changed Files and Output JSON
         id: changed_files
-        uses: tj-actions/changed-files@v44 
+        uses: tj-actions/changed-files@v44
         with:
-          json: true 
+          json: true
           files: |
             config/**
 
@@ -35,35 +37,101 @@ jobs:
         run: |
           echo "Output JSON: ${{ steps.changed_files.outputs.all_changed_files_json }}"
 
-  # ----------------------------------------------------
-  # JOB 2: Runs the Matrix in Parallel
-  # ----------------------------------------------------
-  process_file:
-    needs: prepare_matrix 
+      - name: Process Paths and Extract Board Names
+        id: process_dirs
+        run: |
+          RAW_DIR_JSON="${{ steps.changed_files.outputs.directories_json }}"
+
+          BOARD_LIST=$(echo "$RAW_DIR_JSON" | jq -r '
+            .[] |
+            select(startswith("betaflight/config/configs/")) |
+            rtrimstr("/") |
+            split("/") |
+            last |
+            select(. != "")' | jq -s -c '.')
+
+          # Fallback check: if the list is empty, default to an empty JSON array
+          if [[ -z "$BOARD_LIST" || "$BOARD_LIST" == "[]" ]]; then
+            BOARD_LIST="[]"
+            echo "No relevant board directories were changed."
+          fi
+
+          echo "Final Board List JSON: $BOARD_LIST"
+          echo "board_list_json=$BOARD_LIST" >> $GITHUB_OUTPUT
+
+  # -------------------------------------------------------
+  # JOB 1.2: Prepare the build capability
+  # -------------------------------------------------------
+
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
-    
+    steps:
+      - name: Checkout Firmware Repository
+        uses: actions/checkout@v5
+        with:
+          repository: 'betaflight/betaflight'
+          submodules: recursive
+          ref: 'master'
+          path: 'betaflight'
+          fetch-depth: 1
+
+      - name: Cache build toolchain
+        uses: actions/cache@v4
+        id: cache-toolchain
+        with:
+          path: betaflight/tools
+          key: ${{ runner.os }}-${{ hashFiles('mk/tools.mk') }}
+
+      - name: Download and install toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        working-directory: ./betaflight
+        run: make arm_sdk_install
+
+      - name: Build pico tool and install
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        working-directory: ./betaflight
+        run: make picotool_install
+
+  # ----------------------------------------------------
+  # JOB 2: Runs the matrix for each Target Config
+  # ----------------------------------------------------
+  process_target:
+    needs: [prepare_matrix, setup]
+    runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.prepare_matrix.outputs.changed_files_json) }}
-        
+        target: ${{ fromJson(needs.prepare_matrix.outputs.board_list_json) }}
+
     steps:
-      - name: Checkout Config Code
-        uses: actions/checkout@v4
+      - name: Checkout Config PR
+        uses: actions/checkout@v5
         with:
           path: 'config'
-
-      - name: Checkout Betaflight Repository (Shallow)
-        uses: actions/checkout@v4
-        with:
-          repository: 'betaflight/betaflight' 
-          path: 'firmware'
           fetch-depth: 1
-      
-      - name: Process File ${{ matrix.file }}
+
+      - name: Checkout Firmware Repository
+        uses: actions/checkout@v5
+        with:
+          repository: 'betaflight/betaflight'
+          submodules: recursive
+          ref: 'master'
+          path: 'betaflight'
+          fetch-depth: 1
+
+      - name: Fetch toolchain from cache
+        uses: actions/cache@v4
+        id: cache-toolchain
+        with:
+          path: betaflight/tools
+          key: ${{ runner.os }}-${{ hashFiles('mk/tools.mk') }}
+
+      - name: Process Target ${{ matrix.target }}
+        working-directory: ./betaflight
         run: |
-          FILE_PATH="${{ matrix.file }}"
-          
-          echo "--- Running check on $FILE_PATH ---"
-          ls -al
-                    
+          TARGET="${{ matrix.target }}"
+
+          echo "--- Running check on $TARGET ---"
+          make EXTRA_FLAGS=-Werror CONFIG=$TARGET BETAFLIGHT_CONFIG=../config
